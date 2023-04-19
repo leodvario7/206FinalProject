@@ -44,7 +44,7 @@ _start:
 ; reads welcome and request messages sent by the server and stores them in msg_buf
 _read_message_from_socket:
     mov rax, 0x00                       ; read syscall
-    mov rdi, qword [sock_fd]            ; socket fd
+    mov rdi, qword [read_buf_fd]        ; read buffer fd
     mov rsi, msg_buf                    ; buffer pointer where message will be saved
     mov rdx, 1024                       ; message buffer size
     syscall
@@ -205,6 +205,14 @@ _connection:
         je _messages.socket_failed          ; jumps to failure message
         mov qword [sock_fd], rax            ; takes the return of socket syscall (fd) and stores it in sock_fd 
 
+        mov rax, 0x31                       ;bind syscall used to associate a socket to a particular address and port number
+        mov rdi, qword [sock_fd]            ;load sockets file directory
+        mov rsi, sockaddr_in                ;sockaddr struct pointer
+        mov rdx, sockaddr_in_l              ;sockaddr length
+        syscall
+        cmp rax, 0x00
+        jl _messages.failed_bind 
+        ;call
         ret
     ; connects to the server using the connect syscall with the socket created
     .connect:
@@ -232,7 +240,13 @@ _messages:
         push socket_failed_l   
         push socket_failed_msg
         call _print
-        jmp  _end  
+        jmp  _end
+
+    .failed_bind:
+        push failed_bind_l
+        push failed_bind_msg
+        call _print  
+        jmp _end
 
     .failed_connection:
         push failed_connection_l
@@ -366,6 +380,9 @@ section .data ; Where you declare and store data, static
     file_sorted_msg db 0xA, "----- END OF RANDOM DATA BEGINING OF SORTED DATA -----", 0xA
     file_sorted_l equ $ - file_sorted_msg
     file db "output.txt", 0x0
+    failed_bind_msg: db "Failed to bind connection.", 0xA, 0x0
+    failed_bind_l: equ $ - failed_bind_msg
+ 
     ;Code for the algorithm
     arr db 5, 2, 4, 1, 3 ; the arr to be sorted
     arr_len equ $ - arr ; the length of the arr
@@ -374,6 +391,7 @@ section .bss
     sock_fd resq 1       ; file discriptor of the socket
     file_fd resq 1       ; file discriptor of the file
     msg_buf resb 1024    ; holds welcome message sent by server
+    read_buf_fd resq 1   ; file descriptor for read buffer
     user_input resb 4    ; holds amount requested by user in ascii format
     byte_num resb 4      ; holds amount requested by user in hex format
     arra resb 1          ; holds random bytes, will be extended by amount requested in the program
